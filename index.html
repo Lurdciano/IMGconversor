@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IMGconversor · Optimizador de imágenes 100% cliente</title>
+  <!-- Tailwind CSS vía CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .drop-zone { border: 2px dashed #cbd5e1; transition: all 0.2s ease; }
+    .drop-zone.drag-over { border-color: #3b82f6; background-color: #eff6ff; }
+    .drop-zone.drag-active { border-color: #2563eb; background-color: #dbeafe; }
+    .custom-file-input { display: none; }
+    .preview-img { image-rendering: -webkit-optimize-contrast; }
+    .badge { display: inline-flex; align-items: center; gap: 0.25rem; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+  <!-- ======================== HEADER ======================== -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+      <div class="flex items-center gap-2">
+        <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+        <div>
+          <h1 class="text-lg font-semibold text-gray-900">IMGconversor</h1>
+          <p class="text-xs text-gray-500">Optimiza, convierte y comprime imágenes 100% en el navegador</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+    
+    <!-- ======================== ZONA DE CARGA ======================== -->
+    <section class="mb-8">
+      <div class="drop-zone rounded-xl p-8 text-center cursor-pointer relative min-h-[200px] flex flex-col items-center justify-center"
+           id="dropZone"
+           draggable="true">
+        <input type="file" id="fileInput" class="custom-file-input" multiple accept="image/*" />
+        
+        <svg class="w-12 h-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+        </svg>
+        
+        <p class="text-sm font-medium text-gray-700 mb-1">Haz clic para seleccionar imágenes</p>
+        <p class="text-xs text-gray-500 mb-4">Arrastra y suelta aquí archivos JPG, PNG o WEBP</p>
+        <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition">
+          Seleccionar imágenes
+        </button>
+        
+        <!-- Información de arrastrar -->
+        <div id="dragHint" class="absolute inset-0 flex items-center justify-center bg-blue-50/90 backdrop-blur-sm opacity-0 transition-opacity rounded-xl pointer-events-none">
+          <div class="text-center">
+            <svg class="w-16 h-16 text-blue-500 mb-2 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 10h18l-4-6m0 0l-4 4 4 4" />
+            </svg>
+            <p class="font-semibold text-blue-700">Suelta las imágenes para cargarlas</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contador de archivos -->
+      <div id="fileCount" class="mt-4 text-sm text-gray-500 text-center hidden">
+        <span id="countValue" class="font-semibold text-blue-600">0</span> imagen(es) cargada(s)
+      </div>
+    </section>
+
+    <!-- ======================== PANEL DE CONTROLES ======================== -->
+    <section id="controlsPanel" class="mb-8 hidden bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Configuración de salida</h2>
+          
+          <!-- Formato -->
+          <div class="flex items-center gap-2">
+            <label class="text-xs text-gray-500">Formato:</label>
+            <select id="outputFormat" class="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white">
+              <option value="image/webp">WEBP</option>
+              <option value="image/png">PNG</option>
+              <option value="image/jpeg">JPG</option>
+            </select>
+          </div>
+
+          <!-- Calidad -->
+          <div class="flex items-center gap-3 w-64">
+            <div class="flex justify-between text-xs text-gray-500 w-full">
+              <span>Calidad</span>
+              <span id="qualityValue">0.8</span>
+            </div>
+            <input type="range" id="qualitySlider" min="1" max="10" value="8" class="w-full accent-blue-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+          </div>
+        </div>
+
+        <!-- Redimensión -->
+        <div class="flex items-center gap-4 w-full md:w-auto">
+          <div class="flex items-center gap-3">
+            <input type="checkbox" id="enableResize" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+            <label class="text-xs text-gray-500 cursor-pointer">Redimensionar</label>
+          </div>
+          <div class="flex items-center gap-2 hidden md:flex" id="resizeControls">
+            <label class="text-xs text-gray-500">Ancho máx.</label>
+            <input type="number" id="maxWidth" value="1920" min="100" max="4000" step="10"
+                   class="w-24 border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+            <span class="text-xs text-gray-400">px (mantiene aspecto)</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="mt-4 flex items-center gap-2 text-xs text-gray-400">
+        <span class="w-3 h-3 rounded-full bg-green-400"></span>
+        <span>La calidad se aplica a WEBP y JPG. PNG no soporta compresión con pérdida.</span>
+      </div>
+    </section>
+
+    <!-- ======================== RESULTADOS ======================== -->
+    <section id="resultsSection" class="hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Vista previa y resultados</h2>
+        <button id="downloadAllBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+          Descargar todo
+        </button>
+      </div>
+
+      <div id="resultsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <!-- Las tarjetas de resultado se insertan aquí dinámicamente -->
+      </div>
+    </section>
+
+    <!-- Mensaje vacío -->
+    <div id="emptyState" class="text-center py-12 hidden">
+      <p class="text-gray-500">No hay imágenes procesadas aún.</p>
+    </div>
+  </main>
+
+  <!-- ======================== JAVASCRIPT ======================== -->
+  <script>
+    /* ================================================================
+       OPTIMIZADOR DE IMÁGENES - 100% CLIENT-SIDE
+       ================================================================ */
+
+    // --- Elementos del DOM ---
+    const dropZone        = document.getElementById('dropZone');
+    const fileInput       = document.getElementById('fileInput');
+    const dragHint        = document.getElementById('dragHint');
+    const fileCountEl     = document.getElementById('fileCount');
+    const countValue      = document.getElementById('countValue');
+    const controlsPanel   = document.getElementById('controlsPanel');
+    const resultsSection  = document.getElementById('resultsSection');
+    const emptyState      = document.getElementById('emptyState');
+    const resultsGrid     = document.getElementById('resultsGrid');
+    const downloadAllBtn  = document.getElementById('downloadAllBtn');
+
+    // --- Controles ---
+    const outputFormatSel = document.getElementById('outputFormat');
+    const qualitySlider   = document.getElementById('qualitySlider');
+    const qualityValue    = document.getElementById('qualityValue');
+    const enableResize    = document.getElementById('enableResize');
+    const maxWidthInput   = document.getElementById('maxWidth');
+    const resizeControls  = document.getElementById('resizeControls');
+
+    // --- Estado de la aplicación ---
+    let images = []; // Array de objetos: { id, file, originalUrl, originalSize, optimizedUrl, optimizedSize, format, quality, resizePercent, maxWidth }
+
+    // ================================================================
+    // 1. ZONA DE ARRASTRAR Y SOLTAR (Drag & Drop)
+    // ================================================================
+
+    // Abrir selector de archivos al hacer clic en la zona
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    // Seleccionar archivos desde el input
+    fileInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+      if (files.length) handleFiles(files);
+      fileInput.value = ''; // reset para permitir volver a seleccionar los mismos archivos
+    });
+
+    // Prevenir comportamientos por defecto del navegador en drag
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+    });
+
+    // Visuales de arrastre
+    dropZone.addEventListener('dragenter', () => dropZone.classList.add('drag-over'));
+    dropZone.addEventListener('dragover',  () => dropZone.classList.add('drag-active'));
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drag-over', 'drag-active');
+    });
+    dropZone.addEventListener('drop', (e) => {
+      dropZone.classList.remove('drag-over', 'drag-active');
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+      if (files.length) handleFiles(files);
+    });
+
+    // Mostrar/ocultar hint al soltar fuera del área
+    document.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dragHint.style.opacity = '1';
+    });
+    document.addEventListener('dragleave', (e) => {
+      if (!dropZone.contains(e.relatedTarget)) dragHint.style.opacity = '0';
+    });
+    document.addEventListener('drop', () => {
+      dragHint.style.opacity = '0';
+    });
+
+    // ================================================================
+    // 2. MANEJO DE ARCHIVOS Y PROCESAMIENTO
+    // ================================================================
+
+    async function handleFiles(files) {
+      for (const file of files) {
+        // Evitar duplicados por nombre + tamaño
+        const alreadyExists = images.some(img => img.file.name === file.name && img.file.size === file.size);
+        if (alreadyExists) continue;
+
+        const id = crypto.randomUUID();
+        const originalUrl = URL.createObjectURL(file);
+
+        images.push({
+          id,
+          file,
+          originalUrl,
+          originalSize: file.size,
+          optimizedUrl: null,
+          optimizedSize: 0,
+          format: outputFormatSel.value,
+          quality: parseFloat(qualitySlider.value) / 10,
+          resizePercent: null,
+          maxWidth: parseInt(maxWidthInput.value, 10) || 1920
+        });
+
+        renderImageCard(id, 'pending');
+      }
+
+      updateUI();
+
+      // Procesar cada imagen (pueden ir en paralelo, pero limitamos a 3 concurrentes)
+      await processBatch(images.filter(img => !img.optimizedUrl), 3);
+    }
+
+    // Procesa lotes con concurrencia controlada para no saturar la CPU/GPU del navegador
+    async function processBatch(batch, concurrency) {
+      const queue = [...batch];
+      const running = [];
+
+      while (queue.length || running.length) {
+        while (running.length < concurrency && queue.length) {
+          const promise = processImage(queue.shift()).finally(() => {
+            running.splice(running.indexOf(promise), 1);
+          });
+          running.push(promise);
+        }
+        if (running.length) await Promise.race(running);
+      }
+    }
+
+    async function processImage(img) {
+      return new Promise((resolve) => {
+        const image = new Image();
+        image.onload = async () => {
+          try {
+            const optimized = await compressImage(image, img);
+            img.optimizedUrl = optimized.dataUrl;
+            img.optimizedSize = optimized.size;
+          } catch (err) {
+            console.error('Error procesando imagen:', err);
+            img.optimizedUrl = img.originalUrl;
+            img.optimizedSize = img.originalSize;
+          }
+          updateCardState(img.id, 'done');
+          resolve();
+        };
+        image.onerror = () => {
+          img.optimizedUrl = img.originalUrl;
+          img.optimizedSize = img.originalSize;
+          updateCardState(img.id, 'done');
+          resolve();
+        };
+        image.src = img.originalUrl;
+      });
+    }
+
+    // ================================================================
+    // 3. COMPRESIÓN CON CANVAS
+    // ================================================================
+
+    function compressImage(imageElement, imgState) {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+      let { width, height } = imageElement;
+
+      // --- Redimensión opcional manteniendo aspecto ---
+      if (enableResize.checked && imgState.maxWidth && width > imgState.maxWidth) {
+        const ratio = imgState.maxWidth / width;
+        width = imgState.maxWidth;
+        height = height * ratio;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      ctx.drawImage(imageElement, 0, 0, width, height);
+
+      // --- Exportar ---
+      const mimeType = imgState.format;
+      const quality = imgState.quality; // 0.1 a 1.0
+
+      // toBlob da el tamaño real en bytes (más preciso que toDataURL para el cálculo)
+      return new Promise((resolve) => {
+        canvas.toBlob((blob) => {
+          const size = blob ? blob.size : 0;
+          const dataUrl = canvas.toDataURL(mimeType, quality); // para la vista previa
+          resolve({ dataUrl, size, mimeType });
+        }, mimeType, quality);
+      });
+    }
+
+    // ================================================================
+    // 4. RENDERIZADO DE UI
+    // ================================================================
+
+    function updateUI() {
+      const total = images.length;
+      fileCountEl.classList.toggle('hidden', total === 0);
+      countValue.textContent = total;
+      controlsPanel.classList.toggle('hidden', total === 0);
+      resultsSection.classList.toggle('hidden', total === 0);
+      emptyState.classList.toggle('hidden', total > 0);
+      downloadAllBtn.disabled = total === 0;
+
+      // Mostrar/ocultar controles de ancho según checkbox
+      resizeControls.classList.toggle('hidden', !enableResize.checked);
+
+      // Deshabilitar calidad si es PNG (no usa calidad con pérdida)
+      const isPng = outputFormatSel.value === 'image/png';
+      qualitySlider.disabled = isPng;
+      qualityValue.parentElement.parentElement.style.opacity = isPng ? '0.5' : '1';
+    }
+
+    function renderImageCard(id, state) {
+      // Evitar renderizar duplicados
+      if (document.getElementById(`card-${id}`) && state === 'pending') return;
+
+      const img = images.find(i => i.id === id);
+      if (!img) return;
+
+      const card = document.createElement('div');
+      card.id = `card-${id}`;
+      card.className = 'bg-white border border-gray-200 rounded-xl p-4 flex flex-col';
+
+      card.innerHTML = `
+        <div class="flex justify-between items-start mb-2">
+          <span class="text-xs font-medium text-gray-500 truncate" title="${img.file.name}">${img.file.name}</span>
+          <span id="status-${id}" class="text-[10px] font-bold uppercase tracking-wider text-gray-300">${state === 'done' ? 'LISTO' : 'PROCESANDO'}</span>
+        </div>
+
+        <!-- Prevías: Original vs Optimizada -->
+        <div class="grid grid-cols-2 gap-2 mb-3 min-h-[120px]">
+          <div class="flex flex-col items-center">
+            <span class="text-[10px] text-gray-400 mb-1">Original</span>
+            <img src="${img.originalUrl}" alt="Original" class="preview-img w-full h-24 object-cover rounded-md border border-gray-100 bg-gray-50" />
+          </div>
+          <div class="flex flex-col items-center">
+            <span class="text-[10px] text-gray-400 mb-1">Optimizada</span>
+            <img src="${img.optimizedUrl || img.originalUrl}" alt="Optimizada" id="preview-${id}" class="preview-img w-full h-24 object-cover rounded-md border border-gray-100 bg-gray-50" />
+          </div>
+        </div>
+
+        <!-- Pesos y ahorro -->
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-xs text-gray-600">
+            <span class="font-mono">${formatBytes(img.originalSize)}</span>
+            <span class="text-gray-400 ml-1">→</span>
+            <span id="size-after-${id}" class="font-mono font-semibold">${img.optimizedSize ? formatBytes(img.optimizedSize) : '—'}</span>
+          </div>
+          <div class="text-xs font-semibold" id="saving-${id}">
+            ${img.optimizedSize ? calculateSaving(img.originalSize, img.optimizedSize) : '—'}
+          </div>
+        </div>
+
+        <!-- Barra de ahorro visual -->
+        <div class="w-full bg-gray-100 rounded-full h-1.5 mb-3 overflow-hidden">
+          <div id="savingBar-${id}" class="bg-green-500 h-full rounded-full" style="width: 0%"></div>
+        </div>
+
+        <!-- Descarga individual -->
+        <button onclick="downloadImage('${id}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-1.5 rounded-md transition flex items-center justify-center gap-1.5">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+          Descargar
+        </button>
+      `;
+
+      resultsGrid.appendChild(card);
+    }
+
+    function updateCardState(id, state) {
+      const card = document.getElementById(`card-${id}`);
+      if (!card) return;
+      const img = images.find(i => i.id === id);
+      if (!img) return;
+
+      // Actualizar estado de la esquina
+      const statusEl = card.querySelector(`#status-${id}`);
+      if (statusEl) {
+        statusEl.textContent = state === 'done' ? 'LISTO' : 'PROCESANDO';
+        statusEl.className = state === 'done'
+          ? 'text-[10px] font-bold uppercase tracking-wider text-green-500'
+          : 'text-[10px] font-bold uppercase tracking-wider text-gray-300';
+      }
+
+      // Actualizar pesos
+      const sizeAfterEl = card.querySelector(`#size-after-${id}`);
+      const savingEl = card.querySelector(`#saving-${id}`);
+      const savingBar = card.querySelector(`#savingBar-${id}`);
+      const btn = card.querySelector('button');
+
+      if (state === 'pending') {
+        if (sizeAfterEl) sizeAfterEl.textContent = '—';
+        if (savingEl) {
+          savingEl.textContent = '—';
+          savingEl.className = 'text-xs font-semibold text-gray-400';
+        }
+        if (savingBar) {
+          savingBar.style.width = '0%';
+          savingBar.className = 'h-full rounded-full bg-green-500';
+        }
+        if (btn) {
+          btn.className = 'w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-1.5 rounded-md transition flex items-center justify-center gap-1.5';
+        }
+        return;
+      }
+
+      if (img.optimizedSize) {
+        sizeAfterEl.textContent = formatBytes(img.optimizedSize);
+        savingEl.textContent = calculateSaving(img.originalSize, img.optimizedSize);
+
+        // Porcentaje real de ahorro (negativo si el archivo creció)
+        const savedPercent = (1 - img.optimizedSize / img.originalSize) * 100;
+        const widthPercent = Math.max(0, Math.min(100, Math.abs(savedPercent)));
+        savingEl.className = `text-xs font-semibold ${savedPercent >= 0 ? 'text-green-600' : 'text-red-500'}`;
+        savingBar.style.width = `${widthPercent}%`;
+        savingBar.className = `h-full rounded-full transition-all duration-500 ${savedPercent >= 0 ? 'bg-green-500' : 'bg-red-400'}`;
+      }
+
+      // Cambiar color del botón de descarga cuando está listo
+      if (btn && state === 'done') {
+        btn.className = 'w-full bg-green-600 hover:bg-green-700 text-white text-xs font-medium py-1.5 rounded-md transition flex items-center justify-center gap-1.5 shadow-sm';
+      }
+    }
+
+    function calculateSaving(original, optimized) {
+      const pct = ((1 - optimized / original) * 100).toFixed(1);
+      const sign = pct >= 0 ? '↓' : '↑';
+      return `${sign} ${Math.abs(pct)}%`;
+    }
+
+    function formatBytes(bytes, decimals = 1) {
+      if (!bytes) return '0 B';
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    }
+
+    // ================================================================
+    // 5. DESCARGAS
+    // ================================================================
+
+    window.downloadImage = function(id) {
+      const img = images.find(i => i.id === id);
+      if (!img || !img.optimizedUrl) return;
+
+      const ext = img.format === 'image/webp' ? 'webp' : img.format === 'image/png' ? 'png' : 'jpg';
+      const name = img.file.name.replace(/\.[^/.]+$/, '') + '_optimizado.' + ext;
+
+      const link = document.createElement('a');
+      link.href = img.optimizedUrl;
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
+    downloadAllBtn.addEventListener('click', async () => {
+      const ready = images.filter(img => img.optimizedUrl);
+      if (!ready.length) return;
+
+      downloadAllBtn.disabled = true;
+      downloadAllBtn.innerHTML = '<span class="flex items-center gap-1"><svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Descargando...</span>';
+
+      // Descargas secuenciales con pequeña pausa para evitar bloqueo del navegador
+      for (const img of ready) {
+        downloadImageByUrl(img);
+        await new Promise(r => setTimeout(r, 200));
+      }
+
+      downloadAllBtn.disabled = false;
+      downloadAllBtn.innerHTML = `
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+        Descargar todo
+      `;
+    });
+
+    function downloadImageByUrl(img) {
+      const ext = img.format === 'image/webp' ? 'webp' : img.format === 'image/png' ? 'png' : 'jpg';
+      const name = img.file.name.replace(/\.[^/.]+$/, '') + '_optimizado.' + ext;
+
+      const link = document.createElement('a');
+      link.href = img.optimizedUrl;
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // ================================================================
+    // 6. EVENTOS DE CONTROLES (reprocesar al cambiar ajustes)
+    // ================================================================
+
+    [outputFormatSel, qualitySlider, enableResize, maxWidthInput].forEach(el => {
+      el.addEventListener('input', () => {
+        qualityValue.textContent = (parseFloat(qualitySlider.value) / 10).toFixed(1);
+        updateUI();
+        reprocessAll();
+      });
+    });
+
+    async function reprocessAll() {
+      if (!images.length) return;
+
+      // Actualizar configuración en cada imagen
+      images.forEach(img => {
+        img.format = outputFormatSel.value;
+        img.quality = parseFloat(qualitySlider.value) / 10;
+        img.maxWidth = parseInt(maxWidthInput.value, 10) || 1920;
+        img.optimizedUrl = null;
+        img.optimizedSize = 0;
+      });
+
+      // Reset visual de las tarjetas existentes
+      images.forEach(img => updateCardState(img.id, 'pending'));
+
+      // Reprocesar todas
+      await processBatch([...images], 3);
+    }
+
+    // Inicializar
+    updateUI();
+  </script>
+</body>
+</html>
